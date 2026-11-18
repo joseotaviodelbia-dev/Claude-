@@ -1,0 +1,16 @@
+{
+  "name": "grok-streaming-text",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx --env-file-if-exists=.env index.ts"
+  },
+  "dependencies": {
+    "ai": "^7.0.176"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
