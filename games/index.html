@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sala de Jogos</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --surface: #ffffff; --text: #1f1d1a; --muted: #6b665e;
+    --accent: #3b5bdb; --accent-2: #e8590c; --border: #e2ddd3; --ok: #2f9e44;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16171b; --surface: #20222a; --text: #ecebe8; --muted: #9a978f;
+      --accent: #748ffc; --accent-2: #ff922b; --border: #30333d; --ok: #51cf66; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { max-width: 900px; margin: 0 auto; padding: 32px 16px 8px; }
+  h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 2.6rem); letter-spacing: -0.02em; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  nav { max-width: 900px; margin: 16px auto 0; padding: 0 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+  nav button { border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    padding: 10px 16px; border-radius: 999px; cursor: pointer; font: inherit; }
+  nav button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  main { max-width: 900px; margin: 16px auto 48px; padding: 0 16px; }
+  section.game { display: none; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; }
+  section.game.active { display: block; }
+  h2 { margin: 0 0 4px; }
+  .hint { color: var(--muted); margin: 0 0 16px; }
+  .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .status { font-weight: 600; }
+  .btn { background: var(--accent); color: #fff; border: 0; padding: 10px 18px; border-radius: 10px;
+    font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:hover { filter: brightness(1.08); }
+  /* Jogo da velha */
+  .ttt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 320px; }
+  .ttt button { aspect-ratio: 1; font-size: 2.4rem; font-weight: 700; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+  .ttt button.x { color: var(--accent); } .ttt button.o { color: var(--accent-2); }
+  .ttt button.win { background: color-mix(in srgb, var(--ok) 25%, var(--bg)); }
+  /* Memória */
+  .mem { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 420px; }
+  .card { aspect-ratio: 1; border-radius: 12px; border: 1px solid var(--border); font-size: 2rem;
+    background: var(--accent); color: transparent; cursor: pointer; transition: transform .2s, background .2s; }
+  .card.open, .card.done { background: var(--bg); color: var(--text); transform: rotateY(180deg); }
+  .card.done { opacity: .55; cursor: default; }
+  /* Cobrinha */
+  canvas { display: block; width: 100%; max-width: 400px; aspect-ratio: 1; border-radius: 12px;
+    background: var(--bg); border: 1px solid var(--border); touch-action: none; }
+  .pad { display: grid; grid-template-columns: repeat(3, 56px); gap: 6px; margin-top: 12px; }
+  .pad button { height: 48px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 1.2rem; cursor: pointer; }
+  /* Reação */
+  .zone { height: 220px; border-radius: 16px; display: grid; place-items: center; text-align: center;
+    font-size: 1.3rem; font-weight: 600; cursor: pointer; user-select: none; color: #fff;
+    background: var(--accent); padding: 16px; }
+  .zone.wait { background: #c92a2a; } .zone.go { background: var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎮 Sala de Jogos</h1>
+  <p>Quatro joguinhos rápidos para passar o tempo. Escolha um abaixo.</p>
+</header>
+
+<nav role="tablist">
+  <button role="tab" data-tab="velha" aria-selected="true">Jogo da Velha</button>
+  <button role="tab" data-tab="memoria" aria-selected="false">Memória</button>
+  <button role="tab" data-tab="cobra" aria-selected="false">Cobrinha</button>
+  <button role="tab" data-tab="reacao" aria-selected="false">Reflexo</button>
+</nav>
+
+<main>
+  <section class="game active" id="velha">
+    <h2>Jogo da Velha</h2>
+    <p class="hint">Você é o ✕. O computador joga com ◯.</p>
+    <div class="bar">
+      <span class="status" id="ttt-status">Sua vez</span>
+      <button class="btn" id="ttt-reset">Nova partida</button>
+      <span id="ttt-score">Você 0 · Empates 0 · CPU 0</span>
+    </div>
+    <div class="ttt" id="ttt"></div>
+  </section>
+
+  <section class="game" id="memoria">
+    <h2>Jogo da Memória</h2>
+    <p class="hint">Encontre todos os pares com o menor número de jogadas.</p>
+    <div class="bar">
+      <span class="status" id="mem-status">Jogadas: 0</span>
+      <button class="btn" id="mem-reset">Embaralhar</button>
+      <span id="mem-best"></span>
+    </div>
+    <div class="mem" id="mem"></div>
+  </section>
+
+  <section class="game" id="cobra">
+    <h2>Cobrinha</h2>
+    <p class="hint">Use as setas, WASD ou os botões. Coma as frutas e não bata em si mesma.</p>
+    <div class="bar">
+      <span class="status" id="snake-status">Pontos: 0</span>
+      <button class="btn" id="snake-start">Começar</button>
+      <span id="snake-best"></span>
+    </div>
+    <canvas id="snake" width="400" height="400"></canvas>
+    <div class="pad">
+      <span></span><button data-dir="up">▲</button><span></span>
+      <button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button>
+    </div>
+  </section>
+
+  <section class="game" id="reacao">
+    <h2>Teste de Reflexo</h2>
+    <p class="hint">Clique quando a caixa ficar verde. Clicar antes conta como queimada!</p>
+    <div class="bar">
+      <span class="status" id="react-best"></span>
+    </div>
+    <div class="zone" id="zone">Clique para começar</div>
+  </section>
+</main>
+
+<script>
+// Armazenamento seguro (pode falhar em modo privado)
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+
+// ---------- Abas ----------
+const tabs = document.querySelectorAll('nav button');
+tabs.forEach(b => b.addEventListener('click', () => {
+  tabs.forEach(t => t.setAttribute('aria-selected', t === b));
+  document.querySelectorAll('section.game').forEach(s => s.classList.toggle('active', s.id === b.dataset.tab));
+  if (b.dataset.tab !== 'cobra') snake.pause();
+}));
+
+// ---------- Jogo da Velha ----------
+const ttt = (() => {
+  const el = document.getElementById('ttt'), status = document.getElementById('ttt-status');
+  const scoreEl = document.getElementById('ttt-score');
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  let board, over, score = { p: 0, d: 0, c: 0 };
+  const cells = [...Array(9)].map((_, i) => {
+    const b = document.createElement('button');
+    b.setAttribute('aria-label', 'Casa ' + (i + 1));
+    b.onclick = () => play(i);
+    el.appendChild(b); return b;
+  });
+  const winner = bd => {
+    for (const l of lines) if (bd[l[0]] && bd[l[0]] === bd[l[1]] && bd[l[1]] === bd[l[2]]) return { p: bd[l[0]], l };
+    return bd.every(Boolean) ? { p: 'draw' } : null;
+  };
+  const minimax = (bd, turn) => {
+    const w = winner(bd);
+    if (w) return { s: w.p === 'O' ? 10 : w.p === 'X' ? -10 : 0 };
+    let best = { s: turn === 'O' ? -Infinity : Infinity };
+    bd.forEach((v, i) => {
+      if (v) return;
+      bd[i] = turn; const r = minimax(bd, turn === 'O' ? 'X' : 'O'); bd[i] = null;
+      if (turn === 'O' ? r.s > best.s : r.s < best.s) best = { s: r.s, i };
+    });
+    return best;
+  };
+  const render = w => cells.forEach((c, i) => {
+    c.textContent = board[i] === 'X' ? '✕' : board[i] === 'O' ? '◯' : '';
+    c.className = (board[i] || '').toLowerCase() + (w?.l?.includes(i) ? ' win' : '');
+  });
+  const finish = w => {
+    over = true;
+    if (w.p === 'X') { score.p++; status.textContent = 'Você venceu! 🎉'; }
+    else if (w.p === 'O') { score.c++; status.textContent = 'O computador venceu.'; }
+    else { score.d++; status.textContent = 'Empate!'; }
+    scoreEl.textContent = `Você ${score.p} · Empates ${score.d} · CPU ${score.c}`;
+    render(w);
+  };
+  function play(i) {
+    if (over || board[i]) return;
+    board[i] = 'X';
+    let w = winner(board); if (w) return finish(w);
+    // 20% de chance de jogada aleatória para o CPU não ser imbatível
+    const free = board.map((v, j) => v ? null : j).filter(v => v !== null);
+    const move = Math.random() < 0.2 ? free[Math.floor(Math.random() * free.length)] : minimax(board, 'O').i;
+    board[move] = 'O';
+    w = winner(board); if (w) return finish(w);
+    render();
+  }
+  function reset() { board = Array(9).fill(null); over = false; status.textContent = 'Sua vez'; render(); }
+  document.getElementById('ttt-reset').onclick = reset;
+  reset();
+})();
+
+// ---------- Memória ----------
+(() => {
+  const el = document.getElementById('mem'), status = document.getElementById('mem-status');
+  const bestEl = document.getElementById('mem-best');
+  const emojis = ['🍕','🚀','🐙','🌵','🎸','🍩','⚽','🦊'];
+  let open = [], moves = 0, found = 0, lock = false;
+  const showBest = () => { const b = store.get('mem-best'); bestEl.textContent = b ? `Recorde: ${b} jogadas` : ''; };
+  function reset() {
+    el.innerHTML = ''; open = []; moves = 0; found = 0; lock = false;
+    status.textContent = 'Jogadas: 0';
+    const deck = [...emojis, ...emojis].sort(() => Math.random() - 0.5);
+    deck.forEach(e => {
+      const c = document.createElement('button');
+      c.className = 'card'; c.textContent = e; c.setAttribute('aria-label', 'Carta');
+      c.onclick = () => flip(c);
+      el.appendChild(c);
+    });
+    showBest();
+  }
+  function flip(c) {
+    if (lock || c.classList.contains('open') || c.classList.contains('done')) return;
+    c.classList.add('open'); open.push(c);
+    if (open.length < 2) return;
+    moves++; status.textContent = 'Jogadas: ' + moves;
+    const [a, b] = open;
+    if (a.textContent === b.textContent) {
+      a.classList.add('done'); b.classList.add('done'); open = []; found++;
+      if (found === emojis.length) {
+        status.textContent = `Você terminou em ${moves} jogadas! 🎉`;
+        const best = +store.get('mem-best');
+        if (!best || moves < best) store.set('mem-best', moves);
+        showBest();
+      }
+    } else {
+      lock = true;
+      setTimeout(() => { a.classList.remove('open'); b.classList.remove('open'); open = []; lock = false; }, 800);
+    }
+  }
+  document.getElementById('mem-reset').onclick = reset;
+  reset();
+})();
+
+// ---------- Cobrinha ----------
+const snake = (() => {
+  const cv = document.getElementById('snake'), ctx = cv.getContext('2d');
+  const status = document.getElementById('snake-status'), bestEl = document.getElementById('snake-best');
+  const startBtn = document.getElementById('snake-start');
+  const N = 20, S = cv.width / N;
+  let body, dir, nextDir, food, score, timer = null;
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const showBest = () => { const b = store.get('snake-best'); bestEl.textContent = b ? `Recorde: ${b}` : ''; };
+  const placeFood = () => {
+    do { food = { x: Math.floor(Math.random() * N), y: Math.floor(Math.random() * N) }; }
+    while (body.some(p => p.x === food.x && p.y === food.y));
+  };
+  function draw() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = css('--accent-2');
+    ctx.beginPath(); ctx.arc(food.x * S + S / 2, food.y * S + S / 2, S / 2.4, 0, Math.PI * 2); ctx.fill();
+    body.forEach((p, i) => {
+      ctx.fillStyle = i === 0 ? css('--accent') : css('--ok');
+      ctx.fillRect(p.x * S + 1, p.y * S + 1, S - 2, S - 2);
+    });
+  }
+  function reset() {
+    body = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+    dir = nextDir = { x: 1, y: 0 }; score = 0; placeFood();
+    status.textContent = 'Pontos: 0'; draw(); showBest();
+  }
+  function step() {
+    dir = nextDir;
+    const h = { x: (body[0].x + dir.x + N) % N, y: (body[0].y + dir.y + N) % N };
+    if (body.some(p => p.x === h.x && p.y === h.y)) return gameOver();
+    body.unshift(h);
+    if (h.x === food.x && h.y === food.y) { score++; status.textContent = 'Pontos: ' + score; placeFood(); }
+    else body.pop();
+    draw();
+  }
+  function gameOver() {
+    pause();
+    status.textContent = `Fim de jogo! Pontos: ${score}`;
+    if (score > (+store.get('snake-best') || 0)) store.set('snake-best', score);
+    showBest(); startBtn.textContent = 'Jogar de novo';
+  }
+  function start() { reset(); pause(); timer = setInterval(step, 110); startBtn.textContent = 'Reiniciar'; }
+  function pause() { clearInterval(timer); timer = null; }
+  const dirs = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+  function turn(name) {
+    const d = dirs[name]; if (!d) return;
+    if (d.x === -dir.x && d.y === -dir.y) return;
+    nextDir = d;
+  }
+  const keys = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('cobra').classList.contains('active') || !timer) return;
+    const k = keys[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+    if (k) { e.preventDefault(); turn(k); }
+  });
+  document.querySelectorAll('.pad button').forEach(b => b.onclick = () => turn(b.dataset.dir));
+  // Deslizar no celular
+  let t0 = null;
+  cv.addEventListener('touchstart', e => { t0 = e.touches[0]; }, { passive: true });
+  cv.addEventListener('touchend', e => {
+    if (!t0) return; const t = e.changedTouches[0];
+    const dx = t.clientX - t0.clientX, dy = t.clientY - t0.clientY;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 20) turn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+    t0 = null;
+  });
+  startBtn.onclick = start;
+  reset();
+  return { pause };
+})();
+
+// ---------- Reflexo ----------
+(() => {
+  const zone = document.getElementById('zone'), bestEl = document.getElementById('react-best');
+  let state = 'idle', t, startAt;
+  const showBest = () => { const b = store.get('react-best'); bestEl.textContent = b ? `Recorde: ${b} ms` : 'Sem recorde ainda'; };
+  zone.onclick = () => {
+    if (state === 'idle' || state === 'done') {
+      state = 'wait'; zone.className = 'zone wait'; zone.textContent = 'Espere o verde...';
+      t = setTimeout(() => { state = 'go'; zone.className = 'zone go'; zone.textContent = 'AGORA!'; startAt = performance.now(); },
+        1200 + Math.random() * 2500);
+    } else if (state === 'wait') {
+      clearTimeout(t); state = 'done'; zone.className = 'zone';
+      zone.textContent = 'Cedo demais! 😅 Clique para tentar de novo';
+    } else if (state === 'go') {
+      const ms = Math.round(performance.now() - startAt);
+      state = 'done'; zone.className = 'zone';
+      zone.textContent = `${ms} ms — clique para tentar de novo`;
+      if (ms < (+store.get('react-best') || Infinity)) store.set('react-best', ms);
+      showBest();
+    }
+  };
+  showBest();
+})();
+</script>
+</body>
+</html>
